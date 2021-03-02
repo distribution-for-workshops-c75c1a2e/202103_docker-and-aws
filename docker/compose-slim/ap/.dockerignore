@@ -1,0 +1,2 @@
+# Ignore a "share" file & directory just below the root directory of the build context.
+/share

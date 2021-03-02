@@ -1,0 +1,26 @@
+server {
+    listen ${WEB_PORT};
+    server_name localhost;
+    #server_name $hostname;
+    server_name_in_redirect on;
+    access_log  /var/log/nginx/$server_name.access.log  main;
+    try_files $uri $uri.html @proxy_to_app;
+
+    location ~ /(index|40x|50x)(\.html)?$ {
+        internal; # allow internal(~trusted) request only. If external (client) request arise, return 404 code.
+    }
+
+    # AP servers' settings
+    location @proxy_to_app {
+        proxy_pass http://app_server;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_redirect off;
+        proxy_pass_request_headers on;#allow $realip_remote_addr; #指定したIPからの接続を許可
+        #deny all;
+        #limit_except MKCOL COPY MOVE OPTIONS PROPFIND PROPPATCH LOCK UNLOCK PATCH {
+        #    deny all;
+        #}
+    }
+}

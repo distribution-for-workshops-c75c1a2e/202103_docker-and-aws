@@ -1,0 +1,75 @@
+# 4. Internet GateWay (IGW) をVPCにアタッチし，2つのサブネットのうち，片方のデフォルトルートをIGWに向ける．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This is a stack to create subnets in some AZ and attach an IGW to a VPC.
+  One of the subnets, a private subnet is associated with a route table that has a default route to the IGW.
+Resources:
+  # VPC & IGW
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: True  # パブリックIPを持つインスタンスの名前解決に必要 (パブリックDNSホスト名を取得するかどうか)
+      EnableDnsSupport: True    # パブリックIPを持つインスタンスの名前解決に必要 (R53 Resolverサーバーを有効化するかどうか)
+      Tags:
+      - Key: Name
+        Value: TestVPC
+  TestIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: TestIGW
+  AttachIGW:
+    Type: AWS::EC2::???
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestIGW
+
+  # Subnets
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.30.0/24
+      Tags:
+      - Key: Name
+        Value: PublicSubnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.40.0/24
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet
+
+  # Route table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ???
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref TestIGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicRTandSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+
+Parameters:
+  AZ:
+    Description: Availability Zone where subnets are provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a

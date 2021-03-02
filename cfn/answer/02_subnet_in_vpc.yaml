@@ -1,0 +1,24 @@
+# 2. VPC内でサブネットを切ってみます．まずはAZ固定．
+# 今回初登場の!Ref 関数はリソースの値等を返すCFN (CloudFormation) の組み込み関数で，利用頻度は高いです．
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a simple stack to create a subnet in a VPC.
+Resources:
+  # VPC
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+      - Key: Name
+        Value: TestVPC
+
+  # Subnet
+  TestSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref TestVPC  # サブネットを作成するVPCの物理IDを指定します．!Ref TestVPC の戻り値としてTestVPCの物理ID (vpc-xxx) を取得できます．
+      CidrBlock: 10.0.10.0/24
+      Tags:
+      - Key: Name
+        Value: TestSubnet

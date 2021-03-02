@@ -1,0 +1,183 @@
+# 8. パブリックサブネット内にインスタンスを作成してみます．
+# 【事前準備】EC2のコンソールで適当なキーペアを作成しておいてください．
+# 実際のインスタンス作成にあたり，利用する可能性が高そうなプロパティも指定していきます．
+# SecurityGroup (SG) はインバウンドでSSH (#22), アウトバウンドでhttp (#80), https (#443)を許可してみます．
+# 今回のスタックから，インスタンスにSSHで接続できるようになります．
+# VPC，サブネットの設定に関する説明は 05 のファイルを参照してください．
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Provision an EC2 instance in a public subnet.
+  The instance is allowed to access from specific IP addresses (MyIp) via SSH.
+Resources:
+  # VPC & Subnet
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      Tags:
+      - Key: Name
+        Value: TestVPC
+  TestIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: TestIGW
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestIGW
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: !Select [0, !Cidr [!GetAtt TestVPC.CidrBlock, 1, 8]]
+      Tags:
+      - Key: Name
+        Value: PublicSubnet
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref TestIGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicRTandSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # EC2 Instance
+  TestInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: PublicRTandSubnetAssociation  # サブネットの設定完了後 (ルートテーブルとサブネットの関連付け完了後) にインスタンス作成を開始する．
+    Properties:
+      ImageId: !Ref LatestAMI          # AMI IDのハードコードをやめ，最新のAWS LinuxのAMIを取得します．
+      InstanceType: !Ref InstanceType  # プルダウン形式でインスタンスタイプを選択できるようにします．
+      #SubnetId: !Ref PublicSubnet     # "NetworkInterfaces" を設定していない場合は，こちらでSubnetを指定する．
+      #SecurityGroupIds:               # "NetworkInterfaces" を設定していない場合は，こちらでSGを指定する．
+      #- !Ref TestSG
+      KeyName: !Ref SSHKeyPair         # 既存のSSHキーペアをプルダウンで選択できるようにします (事前のキーペア作成が必要)．
+      Monitoring: !Ref Monitoring      # インスタンスの詳細モニタリング可否を選択できるようにします．
+      NetworkInterfaces:               # パブリックIPアドレスの自動割り当て設定をしています．
+      - AssociatePublicIpAddress: true
+        DeviceIndex: '0'
+        GroupSet:
+        - !Ref TestSG
+        SubnetId: !Ref PublicSubnet
+      #IamInstanceProfile: String      # 今回は使用しませんが，IAMロール (インスタンスプロファイル) 使用時に記述します．
+      #LaunchTemplate: String          # 起動テンプレートの設定はCloudFormationによって上書きされます．
+      #SourceDestCheck: false          # NATインスタンスの場合，必要
+      HibernationOptions:
+        Configured: !Ref Hibernation   # trueでインスタンスの休止が有効になります．
+      Tags:
+      - Key: Name
+        Value: TestInstance
+      UserData:  # インスタンスの起動スクリプトです．シェバン以下をBase64エンコードします．
+        !Base64 |
+          #!/bin/bash
+          touch test_file
+
+  # SG
+  TestSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: SG for TestInstance.
+        GroupName: TestSG
+        VpcId: !Ref TestVPC
+        SecurityGroupIngress:
+        - Description: Allow SSH access from specific IP.
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIp
+        SecurityGroupEgress:  # Egressエントリを1つでも作成すると，デフォルトのEgressエントリ (全許可) は削除されます．
+        - Description: Allow HTTP access to Anywhere (IPv4).
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - Description: Allow HTTP access to Anywhere (IPv6).
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::/0
+        - Description: Allow HTTPS access to Anywhere (IPv4).
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: Allow HTTPS access to Anywhere (IPv6).
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+        Tags:
+        - Key: Name
+          Value: Test-sg
+
+
+Parameters:
+  # NW Configuration
+  VpcCidr:
+    Description: CIDR for VPC (ex. 10.0.0.0/16)
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  AZ:
+    Description: Availability Zone where an instance is provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a
+  MyIp:
+    Description: IPv4 CIDR range allowed to access to public subnet via SSH (ex. 54.168.32.139/32).
+    Type: String
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  # EC2 Instance Configuration
+  LatestAMI:
+    Type : AWS::SSM::Parameter::Value<String>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.micro
+    # AllowedValuesで指定した値は，プルダウン形式で表示される．
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium, t2.large, m1.small, m1.medium, m1.large, m1.xlarge, m2.xlarge, m2.2xlarge, m2.4xlarge, m3.medium, m3.large, m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge, c1.medium, c1.xlarge, c3.large, c3.xlarge, c3.2xlarge, c3.4xlarge, c3.8xlarge, c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, g2.2xlarge, g2.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge, r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge, d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge, hi1.4xlarge, hs1.8xlarge, cr1.8xlarge, cc2.8xlarge, cg1.4xlarge]
+    ConstraintDescription: must be a valid EC2 instance type.
+  SSHKeyPair:
+    Description: Amazon EC2 Key Pair
+    Type: AWS::EC2::KeyPair::KeyName
+  Monitoring:
+    Description: Specifies whether detailed monitoring is enabled (true) or not (false) for the instance.
+    Type: String
+    Default: false
+    AllowedValues: [true, false]
+  Hibernation:
+    Description: Indicates whether an instance is enabled (true) or not (false) for hibernation.
+    Type: String
+    Default: false
+    AllowedValues: [true, false]
+
+
+# Outputsセクションは，本スタック内の種々の値を
+# ほかのスタックにインポートする，CFNのマネコン (マネジメントコンソール) 上に表示するためのセクションです．
+# 今回はマネコン上にインスタンスのパブリックIPアドレスを出力してみます．
+Outputs:
+  GlobalIpv4:
+    Description: EC2 instances global ip address
+    Value: !GetAtt TestInstance.PublicIp

@@ -1,0 +1,5 @@
+*.pem
+/docs
+_old
+#share
+error_list.txt

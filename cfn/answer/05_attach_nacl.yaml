@@ -1,0 +1,132 @@
+# 5. パブリックサブネットにNW-ACL (NACL) を設定してみます．
+# 試しにSSHのみを許可してみます．
+# NACLはエントリーごとにリソースを作成しなければならず，記述が冗長になってしまいます．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  A public subnet is associated with a custom NACL which has some rules.
+Resources:
+  # VPC & IGW
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      Tags:
+      - Key: Name
+        Value: TestVPC
+  TestIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: TestIGW
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestIGW
+
+  # Subnets
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.10.0/24
+      Tags:
+      - Key: Name
+        Value: PublicSubnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.20.0/24
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet
+
+  # Route table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref TestIGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicRTandSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # NACL
+  PublicNACL:  # NACLの作成
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+        VpcId: !Ref TestVPC
+        Tags:
+        - Key: Name
+          Value: PublicNACL
+  NACLIngress:  # Ingress: インバウンド
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId: !Ref PublicNACL
+       RuleNumber: 100       # 小さい番号のルールが優先される (1 ~ 32766)．
+       Protocol: 6           # 6: TCP, 17: UDP, 1: ICMP, 58: ICMPv6, -1: all
+       RuleAction: allow     # RuleNo. * で暗黙のDeny any (IPv4のみ)が設定されているため，基本はAllowで口を開いていく．
+       CidrBlock: !Ref MyIp  # スタック作成時に自宅のIPアドレス等を記載する
+       PortRange:            # 許可するポート番号の範囲．特に，Egressを絞る場合はEphemeral portを考慮すること．
+         From: 22
+         To: 22
+  NACLIngressDeny:  # IPv6は暗黙のDeny anyがないため，追加する (不要かも．検証してない．)
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId: !Ref PublicNACL
+       RuleNumber: 32766
+       Protocol: -1
+       RuleAction: deny
+       Ipv6CidrBlock: ::/0
+  NACLEgressIpv4:  # Egress: アウトバウンド (とりあえずの全許可)
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId: !Ref PublicNACL
+       RuleNumber: 9001
+       Protocol: -1
+       Egress: true
+       RuleAction: allow
+       CidrBlock: 0.0.0.0/0
+  NACLEgressIpv6:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+       NetworkAclId: !Ref PublicNACL
+       RuleNumber: 9002
+       Protocol: -1
+       Egress: true
+       RuleAction: allow
+       Ipv6CidrBlock: ::/0
+  PublicNACLandSubnetAssociation:  # PublicSubnetとPublicNACLを関連付ける．
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      NetworkAclId: !Ref PublicNACL
+
+
+Parameters:
+  AZ:
+    Description: Availability Zone where subnets are provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a
+  MyIp:
+    Description: IPv4 CIDR range allowed to access to public subnet via SSH (ex. 54.168.32.139/32).
+    Type: String
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}    # バリデーションチェックです (CIDRの正規表現)．
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.  # 不正文字列の入力に対するエラーメッセージです．

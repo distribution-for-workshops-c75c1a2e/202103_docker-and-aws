@@ -1,0 +1,23 @@
+# 2. VPC内でサブネットを切ってみます．まずはAZ固定．
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a simple stack to create a subnet in a VPC.
+Resources:
+  # VPC
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+      - Key: Name
+        Value: TestVPC
+
+  # Subnet
+  TestSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: ???
+      CidrBlock: 10.0.10.0/24
+      Tags:
+      - Key: Name
+        Value: TestSubnet

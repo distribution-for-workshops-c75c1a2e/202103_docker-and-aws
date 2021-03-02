@@ -1,0 +1,97 @@
+■説明
+当日利用するコマンドの一覧を記載します．
+"#" で始まる行はコメント行です．
+
+
+■ WSL (WSL2) を利用してdockerを操作する場合 (PS, CMD利用の場合は不要)
+# パスが通っていなければ，docker, docker-composeへのシンボリックリンクを張っておいてください．
+# (元から張られてたかもしれません．覚えてないです．．．)
+sudo ln -s /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker /usr/bin/docker
+sudo ln -s /mnt/wsl/docker-desktop/cli-tools/usr/bin/docker-compose /usr/bin/docker-compose
+
+
+■ 2.1.公式nginxイメージで始めるコンテナ操作
+# 作業ディレクトリは任意
+# 2.1.1. コンテナの作成と起動
+docker run -d -p 8080:80 --name=test_container nginx:alpine
+
+
+# 2.1.2. 動作確認
+docker ps
+docker logs test_container
+
+
+# 2.1.4. 停止と状態確認
+docker stop test_container
+docker ps -a
+
+
+# 2.1.5. コンテナの起動と廃棄
+docker stop test_container
+docker rm test_container
+
+
+
+■ 2.2. Dockerfileによる自作イメージのビルド
+# 以下，"src/docker/nginx-alpine/"内での操作
+# 2.2.3.イメージビルドとコンテナ起動
+docker build --tag=mynginx:1.0 .
+docker run -d -p 8080:80 --name=my_container mynginx:1.0
+
+
+# 2.2.4.カスタマイズ内容確認 (コンテナ内でのコマンド実行)
+docker exec -it my_container /bin/ash
+
+# 以下，コンテナ内操作
+whoami
+hostname
+cat /usr/share/nginx/html/index.html
+ps u 1
+exit
+
+# 以下，再びホストに戻ってからの操作
+whoami
+hostname
+
+
+# 2.2.6. お片付け
+docker stop my_container | xargs docker rm
+docker rmi mynginx:1.0
+
+
+# 以下，"src/docker/alpine/"内での操作
+# 2.2.9. レイヤー・イメージ・コンテナの概念と実体
+docker build --tag=myalpine .
+docker save myalpine > myalpine.tar
+
+
+
+■ 2.4. (A) Docker Composeによる3層Webアプリ作成
+# 以下，"src/docker/compose-slim/"内での操作
+# 2.4.5. 動作確認
+# CMD/PSの場合， docker-compose build --build-arg UID=1000  --build-arg GID=1000
+docker-compose build --build-arg UID=$(id -u)  --build-arg GID=$(id -g)
+docker-compose up -d
+docker-compose ps
+docker-compose logs
+
+
+# 2.4.6. 各種設定確認
+docker network ls
+docker network inspect compose-slim_default
+docker network inspect bridge --format='{{json .IPAM.Config}}'
+docker network inspect bridge --format='{{json .Containers}}'
+
+# treeコマンドがホストマシン (WSL) にインストールされていない場合，lsを利用 (コンテナにはインストール済み)
+# CMD/PSの場合， tree ap /f とか？
+tree -a --dirsfirst ./ap
+ls -l ap/share
+
+docker exec ap-slim tree -a --dirsfirst /develop
+
+
+# 2.4.7. お片付け (今回のケースだと，--volumesはつけてもつけなくても同じ．)
+docker-compose down --rmi=all --volumes
+
+
+# 以上

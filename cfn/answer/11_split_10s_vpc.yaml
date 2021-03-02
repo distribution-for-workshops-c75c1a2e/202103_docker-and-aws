@@ -1,0 +1,102 @@
+# 11. 10.のスタックを分割し，別々に管理 (クロススタック参照) するため，テンプレートも併せて分割します．
+# スタック分割はリソースのライフサイクルや所有者 (そのリソースの管理者) の単位で分けるのがよいとされています．
+# 細分化しすぎると管理が煩雑になり，まとめすぎると，権限の集中が生じるため，適切な粒度で分割すべきとされています．
+# 今回はライフサイクルに着目して，VPC/サブネット関連, SG, EC2インスタンス の3つに分割します．
+# また，スタック作成順は依存関係を考慮し，"VPC/Subnet -> SG -> EC2インスタンス" の順とします．
+# 本テンプレートではVPC/Subnetに関して記述します．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Split 10_'s template stack to 3 stacks; 11_, 12_, and 13_ for cross stack references.
+  Set up VPC, Subnet, IGW (attach it to VPC), and Router in this script.
+Metadata:
+  # Interface (management console settings)
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - VpcCidr
+      - AZ
+
+
+Resources:
+  # VPC & Subnet
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: True  # パブリックIPを持つインスタンスの名前解決に必要
+      EnableDnsSupport: True    # パブリックIPを持つインスタンスの名前解決に必要
+      Tags:
+      - Key: Name
+        Value: TestVPC
+  TestIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: TestIGW
+  AttachIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestIGW
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: !Select [1, !Cidr [!GetAtt TestVPC.CidrBlock, 2, 8]]
+      Tags:
+      - Key: Name
+        Value: PublicSubnet
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref TestIGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicRTandSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+
+Parameters:
+  # NW Configuration
+  VpcCidr:
+    Description: CIDR for VPC (ex. 10.0.0.0/16)
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  AZ:
+    Description: Availability Zone where an instance is provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a
+
+
+# Output VPC & Subnet ID for the cross stack references.
+Outputs:
+  # VPC IDはSGに利用
+  StackVPC:
+    Description: The ID of the VPC.
+    Value: !Ref TestVPC
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCID
+
+  # Subnet IDはEC2インスタンスに利用
+  StackSubnet:
+    Description: The ID of the public subnet.
+    Value: !Ref PublicSubnet
+    Export:
+      Name: !Sub ${AWS::StackName}-SubnetID

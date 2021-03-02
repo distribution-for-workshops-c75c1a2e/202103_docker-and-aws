@@ -1,0 +1,31 @@
+# 3. VPC内でサブネットを切ってみます．
+# さらに今回は "Parametes" セクションを記述することによって，スタック作成時にAZを選択できるようにしてみます．
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a stack to create a subnet in some AZ.
+Resources:
+  # VPC
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+      - Key: Name
+        Value: TestVPC
+
+  # Subnet
+  TestSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ???
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.10.0/24
+      Tags:
+      - Key: Name
+        Value: TestSubnet
+
+
+Parameters:
+  AZ:
+    Description: Availability Zone where a subnet is provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ???

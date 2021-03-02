@@ -1,0 +1,53 @@
+# 7. サブネットを切ったVPC内にインスタンスを作成してみます．
+# ここでは起動確認を目的とし，最低限のプロパティのみ指定します．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This is a stack to provision a simple EC2 instance.
+Resources:
+  # VPC
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      Tags:
+      - Key: Name
+        Value: TestVPC
+
+  # Subnet
+  TestSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: !Select [0, !Cidr [!GetAtt TestVPC.CidrBlock, 1, 8]]
+      Tags:
+      - Key: Name
+        Value: TestSubnet
+
+  # EC2 Instance
+  TestInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-034968955444c1fd9
+      InstanceType: t2.micro
+      SubnetId: !Ref TestSubnet
+      # ちなみに，インスタンスのPrivateIpAddressも指定できますが，今回のように指定無しでも問題ありません．
+      # というより，実際はAutoScalingやK8sを使うことになり，指定することはほぼありません．
+      Tags:
+      - Key: Name
+        Value: TestInstance
+
+
+Parameters:
+  VpcCidr:
+    Description: CIDR for VPC (ex. 10.0.0.0/16)
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  AZ:
+    Description: Availability Zone where an instance is provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a

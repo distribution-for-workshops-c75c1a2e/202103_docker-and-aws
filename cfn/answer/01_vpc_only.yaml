@@ -1,0 +1,37 @@
+# 1. CIDR "10.0.0.0/16" のVPCのみを作成するテンプレートです．
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a simplest stack to provision only a VPC.
+Resources:
+  TestVPC:  # 各リソースに一意な名前（論理名）をつけます．!Ref 関数でこの論理名を参照することで，リソースの物理IDを取得できます．例えば，このVPC内でサブネットを切るときにこの論理名を使います（次の02のyamlファイル参照）．
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:  # YAMLにおいて，行頭の "-" はリストを示します． tags: [{key: Name, value: TestVPC}] という書き方(書式)でも可です．
+      - Key: Name
+        Value: TestVPC
+
+
+
+#-----YAMLの簡単な説明-----#
+# YAMLは，「:」でつないだらハッシュ（辞書），行頭に「-」があればリスト，インデントでネスト，「#」以下 ~ 行末までがコメント を表すということを覚えていればなんとなくは読めると思います．
+# json, YAMLいずれも利用できますが，特にこだわりがなければYAMLがいいと思います (jsonに比べ，可読性が高く，かつコメントも記載できるため)．
+# YAMLの詳しい説明の代わりに，上記のYAMLをjsonで表したものを以下に記載します．
+# これで大体わかると思います．．．わかるといいな．
+#{
+#  "AWSTemplateFormatVersion": "2010-09-09",
+#  "Description": "This is a simplest stack to provision VPC only.",
+#  "Resources": {
+#    "TestVPC": {
+#      "Type": "AWS::EC2::VPC",
+#      "Properties": {
+#        "CidrBlock": "10.0.0.0/16",
+#        "Tags": [
+#          {
+#            "Key": "Name",
+#            "Value": "TestVPC"
+#          }
+#        ]
+#      }
+#    }
+#  }
+#}

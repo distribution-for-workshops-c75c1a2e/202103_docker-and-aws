@@ -1,0 +1,75 @@
+# 4. Internet GateWay (IGW) をVPCにアタッチし，2つのサブネットのうち，片方のデフォルトルートをIGWに向ける．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-  # >（大なり）や|（縦線）はyamlで複数行文字列を扱う時に利用する記号です．詳しくはググってください．
+  This is a stack to create subnets in some AZ and attach an IGW to a VPC.
+  One of the subnets, a private subnet is associated with a route table that has a default route to the IGW.
+Resources:
+  # VPC & IGW
+  TestVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: True  # パブリックIPを持つインスタンスの名前解決に必要 (パブリックDNSホスト名を取得するかどうか)
+      EnableDnsSupport: True    # パブリックIPを持つインスタンスの名前解決に必要 (R53 Resolverサーバーを有効化するかどうか)
+      Tags:
+      - Key: Name
+        Value: TestVPC
+  TestIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: TestIGW
+  AttachIGW:  # IGWのアタッチもリソースとして記述される
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TestVPC
+      InternetGatewayId: !Ref TestIGW
+
+  # Subnets
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.30.0/24
+      Tags:
+      - Key: Name
+        Value: PublicSubnet
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Ref AZ
+      VpcId: !Ref TestVPC
+      CidrBlock: 10.0.40.0/24
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet
+
+  # Route table (デフォルトだと，全サブネットはデフォルトルートテーブルに関連付けられています．)
+  PublicRouteTable:  # パブリックサブネット用のルートテーブルを作成する
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TestVPC
+      Tags:
+      - Key: Name
+        Value: PublicRouteTable
+  PublicRoute:  # PublicRouteTableにルーティング情報を追加する
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW  # VPCにIGWがアタッチされた後に，ルーティング情報を追加する (依存関係の解消)
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      GatewayId: !Ref TestIGW
+      DestinationCidrBlock: 0.0.0.0/0
+  PublicRTandSubnetAssociation:  # PublicRouteTableとPublicSubnetを関連付ける
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+
+Parameters:
+  AZ:
+    Description: Availability Zone where subnets are provisioned.
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a

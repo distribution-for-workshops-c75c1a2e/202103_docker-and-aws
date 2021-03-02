@@ -1,0 +1,81 @@
+version: '3.9'
+services:
+  db:
+    # Image settings
+    build:         # イメージビルドに関する設定
+      context: db  # Dockerfile格納ディレクトリの相対パス
+      args:        # Dockerfile内で利用する変数の設定
+        PACKAGES: ${PACKAGES}
+        TIMEZONE: ${TIMEZONE}
+
+        DB_BASE_IMAGE: ${DB_BASE_IMAGE}
+        DB_USER: ${DB_USER}
+    image: ${DB_IMAGE}:${VERSION}      # ビルドイメージの名前とタグ
+
+    # Container settings
+    container_name: ${DB_CONTAINER}  # コンテナ名
+    hostname: ${DB_HOST}             # コンテナ内のホスト名
+    expose:                          # コンテナ内の露出ポート．リンクされた (同一のdocker NWに所属する) コンテナ間の通信にのみ利用可能
+    - '${DB_PORT}'
+    environment:                     # コンテナに注入する環境変数
+      PGPORT: ${DB_PORT}
+      POSTGRES_USER: ${DB_USER}
+    env_file:                        # env file (コンテナに注入する環境変数を設定したファイル) の相対パス
+    - ./_env/ap
+    - ./_env/db
+
+  ap:
+    # Image settings
+    build:
+      context: ap
+      args:
+        PACKAGES: ${PACKAGES}
+        TIMEZONE: ${TIMEZONE}
+
+        AP_BASE_IMAGE: ${AP_BASE_IMAGE}
+        AP_USER: ${AP_USER}
+        AP_GROUP: ${AP_GROUP}
+        AP_VOLUME: ${AP_VOLUME}
+    image: ${AP_IMAGE}:${VERSION}
+
+    # Container settings
+    container_name: ${AP_CONTAINER}
+    hostname: ${AP_HOST}
+    expose:
+    - '${AP_PORT}'
+    environment:
+      AP_PORT: ${AP_PORT}
+      DB_PORT: ${DB_PORT}
+      DB_CONTAINER: ${DB_CONTAINER}
+      DB_USER: ${DB_USER}
+    env_file:
+    - ./_env/ap
+    - ./_env/db
+    volumes:     # ボリュームのマウント設定 (データ永続化) "コンテナにマウントするホスト上ディレクトリの相対パス:マウントポイントとなるコンテナ側絶対パス"
+    - ./ap/share/:${AP_VOLUME}
+    depends_on:  # サービス間の依存関係．サービス (コンテナ) の起動順が "db" -> "ap" の順になる．
+    - db
+
+  web:
+    # Image settings
+    build:
+      context: web
+      args:
+        PACKAGES: ${PACKAGES} ${WEB_PACKAGES}
+        TIMEZONE: ${TIMEZONE}
+
+        WEB_BASE_IMAGE: ${WEB_BASE_IMAGE}
+        WEB_USER: ${WEB_USER}
+        WEB_GROUP: ${WEB_GROUP}
+        WEB_PORT: ${WEB_PORT}
+        AP_CONTAINER: ${AP_CONTAINER}
+        AP_PORT: ${AP_PORT}
+    image: ${WEB_IMAGE}:${VERSION}
+
+    # Container settings
+    container_name: ${WEB_CONTAINER}
+    hostname: ${WEB_HOST}
+    ports:  # ポートフォワード設定．"ホスト側のリッスンポート:フォワード先となるコンテナ内ポート"
+    - '${HOST_PORT}:${WEB_PORT}'
+    depends_on:
+    - ap

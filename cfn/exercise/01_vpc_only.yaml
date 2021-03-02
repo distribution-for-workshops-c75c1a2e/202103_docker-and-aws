@@ -1,0 +1,11 @@
+# 1. CIDR "10.0.0.0/16" のVPCのみを作成するテンプレートです．
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a simplest stack to provision only a VPC.
+Resources:
+  TestVPC:
+    Type: ???
+    Properties:
+      CidrBlock: ???
+      Tags:
+      - Key: Name
+        Value: TestVPC

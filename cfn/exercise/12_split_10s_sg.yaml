@@ -1,0 +1,92 @@
+# 12. 10.のスタックを分割し，別々に管理 (クロススタック参照) するため，テンプレートも併せて分割します．
+# スタック分割はリソースのライフサイクルや所有者 (そのリソースの管理者) の単位で分けるのがよいとされています．
+# 細分化しすぎると管理が煩雑になり，まとめすぎると，権限の集中が生じるため，適切な粒度で分割すべきとされています．
+# 今回はライフサイクルに着目して，VPC/サブネット関連, SG, EC2インスタンス の3つに分割します．
+# また，スタック作成順は依存関係を考慮し，"VPC/Subnet -> SG -> EC2インスタンス" の順とします．
+# 本テンプレートではSGに関して記述します．
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Split 10_'s template stack to 3 stacks; 11_, 12_, and 13_ for cross stack references.
+  Set up security group for SSH/HTTP access from MyIP in this stack.
+Metadata:
+  # Interface (management console settings)
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Cross stack reference configuration
+      Parameters:
+      - VPCStackName
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - MyIp
+
+
+Resources:
+  # SG
+  TestSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: SG for TestInstance.
+        GroupName: TestSG
+        VpcId:
+          !ImportValue
+            Fn::Sub: ??? # ここでクロススタック参照発生
+        SecurityGroupIngress:
+        - Description: Allow SSH access from specific IP.
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIp
+        - Description: Allow HTTP access from specific IP.  # nginxの起動確認のため，#80 を開けます．（とりあえずMyIpのみ）
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIp
+        SecurityGroupEgress:
+        - Description: Allow HTTP access to Anywhere (IPv4).
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - Description: Allow HTTP access to Anywhere (IPv6).
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::/0
+        - Description: Allow HTTPS access to Anywhere (IPv4).
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: Allow HTTPS access to Anywhere (IPv6).
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+        Tags:
+        - Key: Name
+          Value: Test-sg
+
+
+Parameters:
+  # NW Configuration
+  MyIp:
+    Description: IPv4 CIDR range allowed to access to public subnet via SSH (ex. 54.168.32.139/32).
+    Type: String
+    AllowedPattern: (\d{1,3}\.){3}\d{1,3}/\d{1,2}
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  # Cross stack reference param.
+  ???:  # スタック名をいい感じに引っ張ってくる仕組みとか考えたいけど，今のところ思いついていない．
+    Description: Stack name to import VPC ID for the cross stack reference.
+    Type: String
+
+
+Outputs:
+  # SGのグループ名ははEC2インスタンスに利用
+  StackSG:
+    Description: The ID of the SG.
+    Value: !Ref TestSG
+    Export:
+      Name: !Sub ${AWS::StackName}-SG
