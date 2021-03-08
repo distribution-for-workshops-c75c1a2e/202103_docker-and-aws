@@ -25,7 +25,6 @@ RUN chmod 755 /setup/entrypoint.sh \
 # Create a user and a group; "docker", and set for the "docker" to execute nginx on port 80 (a well-known port).
 RUN groupadd -g 150 docker \
  && useradd -g docker -M -s /bin/bash -u 150 docker \
- && setcap CAP_NET_BIND_SERVICE=p /usr/sbin/nginx \
  && touch /var/run/nginx.pid \
  && chown -R docker:docker \
           /usr/share/nginx/html/ \

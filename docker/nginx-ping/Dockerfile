@@ -20,4 +20,4 @@ RUN apk update \
 # Set "ping 127.0.0.1" as the init process (-> form: exec ping...).
 ENTRYPOINT ["ping", "127.0.0.1"]
 #ENTRYPOINT ["ping", "-c", "1", "127.0.0.1"]
-#ENTRYPOINT ["sudo", "/usr/sbin/nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"]
+#ENTRYPOINT ["/usr/sbin/nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"]

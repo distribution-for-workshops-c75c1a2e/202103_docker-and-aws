@@ -47,7 +47,6 @@ RUN addgroup -g ${GID} ${WEB_GROUP} \
             -s /bin/ash \
             --uid ${UID} \
             ${WEB_USER} \
- && setcap CAP_NET_BIND_SERVICE=p /usr/sbin/nginx \
  && touch /var/run/nginx.pid \
  && chown -R ${WEB_USER}:${WEB_GROUP} \
           /usr/share/nginx/html/ \

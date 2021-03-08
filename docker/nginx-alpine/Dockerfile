@@ -30,7 +30,6 @@ RUN addgroup -g 150 docker \
             -s /bin/ash \
             --uid 150 \
             docker \
- && setcap CAP_NET_BIND_SERVICE=p /usr/sbin/nginx \
  && touch /var/run/nginx.pid \
  && chown -R docker:docker \
           /usr/share/nginx/html/ \

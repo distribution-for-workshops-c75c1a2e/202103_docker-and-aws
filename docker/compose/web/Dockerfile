@@ -44,7 +44,6 @@ RUN chmod 755 /setup/entrypoint.sh \
 # Create a user and a group, and set for the user/group to execute nginx on port 80 (a well-known port).
 RUN groupadd -g ${GID} ${WEB_GROUP} \
  && useradd -g ${WEB_GROUP} -M -s /bin/bash -u ${UID} ${WEB_USER} \
- && setcap CAP_NET_BIND_SERVICE=p /usr/sbin/nginx \
  && touch /var/run/nginx.pid \
  && chown -R ${WEB_USER}:${WEB_GROUP} \
           /usr/share/nginx/html/ \
